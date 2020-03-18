@@ -75,7 +75,7 @@ def main():
 
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
 
-    discriminator = Discriminator(sequence_length=20, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim, 
+    discriminator = Discriminator(sequence_length=SEQ_LENGTH, num_classes=2, vocab_size=vocab_size, embedding_size=dis_embedding_dim,
                                 filter_sizes=dis_filter_sizes, num_filters=dis_num_filters, l2_reg_lambda=dis_l2_reg_lambda)
 
     config = tf.ConfigProto()
@@ -84,7 +84,7 @@ def main():
     sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver()
 
-    if os.path.exists(MODEL_FILE):
+    if os.path.exists(MODEL_FILE + ".index"):
         saver.restore(sess, MODEL_FILE)
         print("Model restored.")
     else:
@@ -122,7 +122,7 @@ def main():
     log.write('adversarial training...\n')
     for epoch_num in range(EPOCH_COUNT):
         # Train the generator for one step
-        print(" > Epoch " + str(epoch_num))
+        print(" > Epoch " + str(epoch_num) + "/" + str(EPOCH_COUNT))
         for it in range(GEN_TRAINING_UPDATE_COUNT):
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, discriminator)

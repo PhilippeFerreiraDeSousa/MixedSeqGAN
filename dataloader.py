@@ -1,20 +1,20 @@
 import numpy as np
+import pandas as pd
 
 
 class Gen_Data_loader():
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, seq_length):
         self.batch_size = batch_size
         self.token_stream = []
+        self.seq_length = seq_length
 
     def create_batches(self, data_file):
         self.token_stream = []
-        with open(data_file, 'r') as f:
-            for line in f:
-                line = line.strip()
-                line = line.split()
-                parse_line = [int(x) for x in line]
-                if len(parse_line) == 20:
-                    self.token_stream.append(parse_line)
+        df = pd.read_hdf(data_file)
+        count = len(df)
+
+        for i in range(count // self.seq_length):
+            self.token_stream.append(df.values[i * self.seq_length:(i+1) * self.seq_length])
 
         self.num_batch = int(len(self.token_stream) / self.batch_size)
         self.token_stream = self.token_stream[:self.num_batch * self.batch_size]
@@ -31,28 +31,27 @@ class Gen_Data_loader():
 
 
 class Dis_dataloader():
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, seq_length):
         self.batch_size = batch_size
         self.sentences = np.array([])
         self.labels = np.array([])
+        self.seq_length = seq_length
 
     def load_train_data(self, positive_file, negative_file):
         # Load data
         positive_examples = []
         negative_examples = []
-        with open(positive_file)as fin:
-            for line in fin:
-                line = line.strip()
-                line = line.split()
-                parse_line = [int(x) for x in line]
-                positive_examples.append(parse_line)
-        with open(negative_file)as fin:
-            for line in fin:
-                line = line.strip()
-                line = line.split()
-                parse_line = [int(x) for x in line]
-                if len(parse_line) == 20:
-                    negative_examples.append(parse_line)
+
+        df_pos = pd.read_hdf(positive_file)
+        count_pos = len(df_pos)
+        for i in range(int(count_pos / self.seq_length)):
+            positive_examples.append(df_pos.values[i * self.seq_length:(i + 1) * self.seq_length])
+
+        df_neg = pd.read_hdf(negative_file)
+        count_neg = len(df_neg)
+        for i in range(int(count_neg / self.seq_length)):
+            negative_examples.append(df_neg.values[i * self.seq_length:(i + 1) * self.seq_length])
+
         self.sentences = np.array(positive_examples + negative_examples)
 
         # Generate labels

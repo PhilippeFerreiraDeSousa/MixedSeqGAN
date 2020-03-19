@@ -49,7 +49,7 @@ class Generator(object):
             h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
             o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
             log_prob = tf.log(tf.nn.softmax(o_t[:, 2:]))
-            next_token = tf.reshape(tf.multinomial(log_prob, 1, output_dtype=tf.int32), [self.batch_size])
+            next_token = tf.reshape(tf.multinomial(log_prob, 1, output_dtype=tf.int32), [self.batch_size])  # FIXME: do not predict start token: +1
             x_tp1 = tf.concat([o_t[:, :2], tf.nn.embedding_lookup(self.g_embeddings, next_token)], axis=1)  # batch x (emb_dim + 2)
             gen_o = gen_o.write(i, tf.reduce_sum(tf.multiply(tf.one_hot(next_token, self.num_emb, 1.0, 0.0),    # not used anywhere anyway ?
                                                              tf.nn.softmax(o_t[:, 2:])), 1))  # [batch_size] , prob

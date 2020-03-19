@@ -92,11 +92,13 @@ class Generator(object):
         self.g_predictions = tf.transpose(self.g_predictions.stack(), perm=[1, 0, 2])  # batch_size x seq_length x vocab_size
 
         # pretraining loss
-        self.pretrain_loss = -tf.reduce_sum(
+        self.pretrain_loss = (-tf.reduce_sum(
             tf.one_hot(tf.to_int32(tf.reshape(self.x[:, :, 2], [-1])), self.num_emb, 1.0, 0.0) * tf.log(
                 tf.clip_by_value(tf.reshape(self.g_predictions[:, :, 2:], [-1, self.num_emb]), 1e-20, 1.0)
             )
-        ) / (self.sequence_length * self.batch_size) + tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 2:], self.x[:, :, 2:]))
+        ) + tf.reduce_sum(
+            tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, :2], self.x[:, :, :2]))
+        )) / (self.sequence_length * self.batch_size)
 
         # training updates
         pretrain_opt = self.g_optimizer(self.learning_rate)
@@ -112,7 +114,7 @@ class Generator(object):
                 tf.one_hot(tf.to_int32(tf.reshape(self.x[:, :, 2], [-1])), self.num_emb, 1.0, 0.0) * tf.log(
                     tf.clip_by_value(tf.reshape(self.g_predictions[:, :, 2:], [-1, self.num_emb]), 1e-20, 1.0)
                 ), 1) * tf.reshape(self.rewards, [-1])
-        ) + tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 2:], self.x[:, :, 2:]))
+        ) + tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, :2], self.x[:, :, :2]))
 
         g_opt = self.g_optimizer(self.learning_rate)
 

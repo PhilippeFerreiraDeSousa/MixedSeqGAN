@@ -48,11 +48,11 @@ class Generator(object):
         def _g_recurrence(i, x_t, h_tm1, gen_o, gen_x):
             h_t = self.g_recurrent_unit(x_t, h_tm1)  # hidden_memory_tuple
             o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
-            log_prob = tf.log(tf.nn.softmax(o_t[:, 2:]))
-            next_token = tf.reshape(tf.multinomial(log_prob, 1, output_dtype=tf.int32), [self.batch_size])  # FIXME: do not predict start token: +1
+            log_prob = tf.log(o_t[:, 3:])
+            next_token = tf.reshape(tf.multinomial(log_prob, 1, output_dtype=tf.int32) + 1, [self.batch_size])  # FIXME: do not predict start token: +1
             x_tp1 = tf.concat([o_t[:, :2], tf.nn.embedding_lookup(self.g_embeddings, next_token)], axis=1)  # batch x (emb_dim + 2)
             gen_o = gen_o.write(i, tf.reduce_sum(tf.multiply(tf.one_hot(next_token, self.num_emb, 1.0, 0.0),    # not used anywhere anyway ?
-                                                             tf.nn.softmax(o_t[:, 2:])), 1))  # [batch_size] , prob
+                                                             o_t[:, 2:]), 1))  # [batch_size] , prob
             gen_x = gen_x.write(i, tf.concat([o_t[:, :2], tf.stack([tf.cast(next_token, tf.float32)], axis=1)], axis=1))  # indices, batch_size
             return i + 1, x_tp1, h_t, gen_o, gen_x
 
@@ -78,7 +78,7 @@ class Generator(object):
         def _pretrain_recurrence(i, x_t, h_tm1, g_predictions):
             h_t = self.g_recurrent_unit(x_t, h_tm1)
             o_t = self.g_output_unit(h_t)
-            g_predictions = g_predictions.write(i, tf.concat([o_t[:, :2], tf.nn.softmax(o_t[:, 2:])], axis=1))  # batch x (vocab_size + 2)
+            g_predictions = g_predictions.write(i, o_t)  # batch x (vocab_size + 2)
             x_tp1 = ta_emb_x.read(i)
             return i + 1, x_tp1, h_t, g_predictions
 
@@ -196,16 +196,16 @@ class Generator(object):
         return unit
 
     def create_output_unit(self, params):
-        self.Wo = tf.Variable(self.init_matrix([self.hidden_dim, self.num_emb + 2]))
-        self.bo = tf.Variable(self.init_matrix([self.num_emb + 2]))
+        self.Wo = tf.Variable(self.init_matrix([self.hidden_dim, self.num_emb + 2 - 1]))    # add 2 continuous features but remove start token category
+        self.bo = tf.Variable(self.init_matrix([self.num_emb + 2 - 1]))
         params.extend([self.Wo, self.bo])
 
         def unit(hidden_memory_tuple):
             hidden_state, c_prev = tf.unstack(hidden_memory_tuple)
             # hidden_state : batch x hidden_dim
             logits = tf.matmul(hidden_state, self.Wo) + self.bo
-            # output = tf.nn.softmax(logits)
-            return logits
+
+            return tf.concat([logits[:, :2], tf.zeros(shape=[self.batch_size, 1], dtype="float32"), tf.nn.softmax(logits[:, 2:])], axis=1)
 
         return unit
 

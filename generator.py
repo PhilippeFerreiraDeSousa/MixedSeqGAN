@@ -109,14 +109,16 @@ class Generator(object):
         #######################################################################################################
         #  Unsupervised Training
         #######################################################################################################
-        self.g_loss = -tf.reduce_sum(
+        self.categorical_loss = -tf.reduce_sum(
             tf.reduce_sum(
                 tf.one_hot(tf.to_int32(tf.reshape(self.x[:, :, 2], [-1])), self.num_emb, 1.0, 0.0) * tf.log(
                     tf.clip_by_value(tf.reshape(self.g_predictions[:, :, 2:], [-1, self.num_emb]), 1e-20, 1.0)
                 ), 1) * tf.reshape(self.rewards, [-1])
-        ) + 1000000 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 0], self.x[:, :, 0])) \
-          + 10000 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 1], self.x[:, :, 1]))
+        )
+        self.continuous_loss = 1000 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 0], self.x[:, :, 0])) \
+          + 10 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 1], self.x[:, :, 1]))
 
+        self.g_loss =  self.categorical_loss + self.continuous_loss
         g_opt = self.g_optimizer(self.learning_rate)
 
         self.g_grad, _ = tf.clip_by_global_norm(tf.gradients(self.g_loss, self.g_params), self.grad_clip)

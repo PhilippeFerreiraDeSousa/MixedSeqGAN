@@ -1,4 +1,5 @@
 import pickle
+import numpy as np
 
 class History:
     def __init__(self,
@@ -24,9 +25,14 @@ class History:
         self.DIS_TRAINING_UPDATE_COUNT = DIS_TRAINING_UPDATE_COUNT
 
         self.pre_training_loss = []
-        self.generator_loss = []
+        self.generator_categorical_loss = []
+        self.generator_continuous_loss = []
         self.discriminator_loss = []
 
+
+    @property
+    def generator_loss(self):
+        return np.array(self.generator_categorical_loss) + np.array(self.generator_continuous_loss)
 
     def save(self):
         with open(self.HISTORY_FILE, 'wb') as history_file:

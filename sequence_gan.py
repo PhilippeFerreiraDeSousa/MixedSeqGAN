@@ -9,6 +9,13 @@ from dataloader import Gen_Data_loader, Dis_dataloader
 from generator import Generator
 from discriminator import Discriminator
 from rollout import ROLLOUT
+from config import DIS_PRETRAINING_FAKE_SAMPLE_COUNT,\
+    DIS_PRETRAINING_UPDATE_COUNT, \
+    EPOCH_COUNT, \
+    GEN_TRAINING_UPDATE_COUNT, \
+    DIS_TRAINING_FAKE_SAMPLE_COUNT, \
+    DIS_TRAINING_UPDATE_COUNT
+
 
 #########################################################################################
 #  Generator  Hyper-parameters
@@ -46,14 +53,6 @@ generated_num = 37212 // SEQ_LENGTH # generate the same number of negative, in r
 # GEN_TRAINING_UPDATE_COUNT = 1   # Let this at 1 typically
 # DIS_TRAINING_FAKE_SAMPLE_COUNT = 5
 # DIS_TRAINING_UPDATE_COUNT = 3
-
-DIS_PRETRAINING_FAKE_SAMPLE_COUNT = 5
-DIS_PRETRAINING_UPDATE_COUNT = 1
-
-EPOCH_COUNT = 10
-GEN_TRAINING_UPDATE_COUNT = 1   # Let this at 1 typically
-DIS_TRAINING_FAKE_SAMPLE_COUNT = 1
-DIS_TRAINING_UPDATE_COUNT = 1
 
 # Files
 MODEL_FILE = "save/model.ckpt"
@@ -145,8 +144,9 @@ def main():
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, discriminator)
             feed = {generator.x: samples, generator.rewards: rewards}
-            _, loss = sess.run([generator.g_updates, generator.g_loss], feed_dict=feed)
-            history.generator_loss.append(loss)
+            _, categorical_loss, continuous_loss = sess.run([generator.g_updates, generator.categorical_loss, generator.continuous_loss], feed_dict=feed)
+            history.generator_categorical_loss.append(categorical_loss)
+            history.generator_continuous_loss.append(continuous_loss)
             print("   > Generator params updated")
 
         # Update roll-out parameters

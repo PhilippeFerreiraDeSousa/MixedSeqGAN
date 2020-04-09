@@ -81,7 +81,7 @@ class ROLLOUT(object):
         rewards = []
         for i in range(rollout_num):
             # given_num between 1 to sequence_length - 1 for a part completed sentence
-            for given_num in range(1, self.sequence_length ):
+            for given_num in range(1, self.sequence_length):
                 feed = {self.x: input_x, self.given_num: given_num}
                 samples = sess.run(self.gen_x, feed)
                 feed = {discriminator.input_x: samples, discriminator.dropout_keep_prob: 1.0}

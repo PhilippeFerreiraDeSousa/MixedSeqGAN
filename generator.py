@@ -50,10 +50,10 @@ class Generator(object):
             o_t = self.g_output_unit(h_t)  # batch x vocab , logits not prob
             log_prob = tf.log(o_t[:, 3:])
             next_token = tf.reshape(tf.multinomial(log_prob, 1, output_dtype=tf.int32) + 1, [self.batch_size])  # FIXME: do not predict start token: +1
-            x_tp1 = tf.concat([o_t[:, :2], tf.nn.embedding_lookup(self.g_embeddings, next_token)], axis=1)  # batch x (emb_dim + 2)
+            x_tp1 = tf.concat([tf.math.round(200000 * o_t[:, :1]) / 200000, tf.math.round(o_t[:, 1:2]), tf.nn.embedding_lookup(self.g_embeddings, next_token)], axis=1)  # batch x (emb_dim + 2)
             gen_o = gen_o.write(i, tf.reduce_sum(tf.multiply(tf.one_hot(next_token, self.num_emb, 1.0, 0.0),    # not used anywhere anyway ?
                                                              o_t[:, 2:]), 1))  # [batch_size] , prob
-            gen_x = gen_x.write(i, tf.concat([o_t[:, :2], tf.stack([tf.cast(next_token, tf.float32)], axis=1)], axis=1))  # indices, batch_size
+            gen_x = gen_x.write(i, tf.concat([tf.math.round(200000 * o_t[:, :1]) / 200000, tf.math.round(o_t[:, 1:2]), tf.stack([tf.cast(next_token, tf.float32)], axis=1)], axis=1))  # indices, batch_size
             return i + 1, x_tp1, h_t, gen_o, gen_x
 
         _, _, _, self.gen_o, self.gen_x = control_flow_ops.while_loop(
@@ -92,19 +92,19 @@ class Generator(object):
         self.g_predictions = tf.transpose(self.g_predictions.stack(), perm=[1, 0, 2])  # batch_size x seq_length x vocab_size
 
         # pretraining loss
-        self.pretrain_loss = (-tf.reduce_sum(
-            tf.one_hot(tf.to_int32(tf.reshape(self.x[:, :, 2], [-1])), self.num_emb, 1.0, 0.0) * tf.log(
-                tf.clip_by_value(tf.reshape(self.g_predictions[:, :, 2:], [-1, self.num_emb]), 1e-20, 1.0)
-            )
-        ) + tf.reduce_sum(
-            tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, :2], self.x[:, :, :2]))
-        )) / (self.sequence_length * self.batch_size)
-
-        # training updates
-        pretrain_opt = self.g_optimizer(self.learning_rate)
-
-        self.pretrain_grad, _ = tf.clip_by_global_norm(tf.gradients(self.pretrain_loss, self.g_params), self.grad_clip)
-        self.pretrain_updates = pretrain_opt.apply_gradients(zip(self.pretrain_grad, self.g_params))
+        # self.pretrain_loss = (-tf.reduce_sum(
+        #     tf.one_hot(tf.to_int32(tf.reshape(self.x[:, :, 2], [-1])), self.num_emb, 1.0, 0.0) * tf.log(
+        #         tf.clip_by_value(tf.reshape(self.g_predictions[:, :, 2:], [-1, self.num_emb]), 1e-20, 1.0)
+        #     )
+        # ) + 1000 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 0], self.x[:, :, 0]))
+        #   + 10 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 1], self.x[:, :, 1]))
+        # ) / (self.sequence_length * self.batch_size)
+        #
+        # # training updates
+        # pretrain_opt = self.g_optimizer(self.learning_rate)
+        #
+        # self.pretrain_grad, _ = tf.clip_by_global_norm(tf.gradients(self.pretrain_loss, self.g_params), self.grad_clip)
+        # self.pretrain_updates = pretrain_opt.apply_gradients(zip(self.pretrain_grad, self.g_params))
 
         #######################################################################################################
         #  Unsupervised Training
@@ -114,7 +114,8 @@ class Generator(object):
                 tf.one_hot(tf.to_int32(tf.reshape(self.x[:, :, 2], [-1])), self.num_emb, 1.0, 0.0) * tf.log(
                     tf.clip_by_value(tf.reshape(self.g_predictions[:, :, 2:], [-1, self.num_emb]), 1e-20, 1.0)
                 ), 1) * tf.reshape(self.rewards, [-1])
-        ) + tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, :2], self.x[:, :, :2]))
+        ) + 1000000 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 0], self.x[:, :, 0])) \
+          + 10000 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 1], self.x[:, :, 1]))
 
         g_opt = self.g_optimizer(self.learning_rate)
 
@@ -125,9 +126,9 @@ class Generator(object):
         outputs = sess.run(self.gen_x)
         return outputs
 
-    def pretrain_step(self, sess, x):
-        outputs = sess.run([self.pretrain_updates, self.pretrain_loss], feed_dict={self.x: x})
-        return outputs
+    # def pretrain_step(self, sess, x):
+    #     outputs = sess.run([self.pretrain_updates, self.pretrain_loss], feed_dict={self.x: x})
+    #     return outputs
 
     def init_matrix(self, shape):
         return tf.random_normal(shape, stddev=0.1)

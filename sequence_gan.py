@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 import os
-
+from history import History
 import random
 from dataloader import Gen_Data_loader, Dis_dataloader
 from generator import Generator
@@ -39,18 +39,26 @@ generated_num = 37212 // SEQ_LENGTH # generate the same number of negative, in r
 
 
 # Loop iteration counts
-DIS_PRETRAINING_FAKE_SAMPLE_COUNT = 50
-DIS_PRETRAINING_UPDATE_COUNT = 3
+# DIS_PRETRAINING_FAKE_SAMPLE_COUNT = 50
+# DIS_PRETRAINING_UPDATE_COUNT = 3
+#
+# EPOCH_COUNT = 200
+# GEN_TRAINING_UPDATE_COUNT = 1   # Let this at 1 typically
+# DIS_TRAINING_FAKE_SAMPLE_COUNT = 5
+# DIS_TRAINING_UPDATE_COUNT = 3
 
-EPOCH_COUNT = 200
+DIS_PRETRAINING_FAKE_SAMPLE_COUNT = 5
+DIS_PRETRAINING_UPDATE_COUNT = 1
+
+EPOCH_COUNT = 10
 GEN_TRAINING_UPDATE_COUNT = 1   # Let this at 1 typically
-DIS_TRAINING_FAKE_SAMPLE_COUNT = 5
-DIS_TRAINING_UPDATE_COUNT = 3
+DIS_TRAINING_FAKE_SAMPLE_COUNT = 1
+DIS_TRAINING_UPDATE_COUNT = 1
 
 # Files
 MODEL_FILE = "save/model.ckpt"
 RANDOM_MODEL_FILE = "save/initial_random_model.ckpt"
-LOG_FILE = "save/experiment-log.txt"
+HISTORY_FILE = "save/history.pkl"
 
 
 def generate_samples(sess, trainable_model, batch_size, generated_num, output_file):
@@ -68,6 +76,17 @@ def generate_samples(sess, trainable_model, batch_size, generated_num, output_fi
 def main():
     random.seed(SEED)
     np.random.seed(SEED)
+
+    history = History(HISTORY_FILE,
+                      DIS_PRETRAINING_FAKE_SAMPLE_COUNT,
+                      DIS_PRETRAINING_UPDATE_COUNT,
+                      BATCH_SIZE,
+                      SEQ_LENGTH,
+                      generated_num,
+                      EPOCH_COUNT,
+                      GEN_TRAINING_UPDATE_COUNT,
+                      DIS_TRAINING_FAKE_SAMPLE_COUNT,
+                      DIS_TRAINING_UPDATE_COUNT)
 
     gen_data_loader = Gen_Data_loader(BATCH_SIZE, SEQ_LENGTH)
     vocab_size = 112 # np.array([2, 3, 2, 4, 4]) + np.array([1, 1, 1, 1, 1])
@@ -94,8 +113,6 @@ def main():
     # First, use the oracle model to provide the positive examples, which are sampled from the oracle data distribution
     gen_data_loader.create_batches(positive_file)
 
-    log = open(LOG_FILE, 'w')
-
     print('Start pre-training discriminator...')
     # Train 3 epoch on the generated data and do this for 50 times
     for i in range(DIS_PRETRAINING_FAKE_SAMPLE_COUNT):
@@ -112,14 +129,15 @@ def main():
                     discriminator.input_y: y_batch,
                     discriminator.dropout_keep_prob: dis_dropout_keep_prob
                 }
-                _ = sess.run(discriminator.train_op, feed)
+                _, loss = sess.run([discriminator.train_op, discriminator.loss], feed)
+                history.pre_training_loss.append(loss)
                 # print("     > Discriminator params updated")
 
     rollout = ROLLOUT(generator, 0.8)
+    history.save()
 
     print('#########################################################################')
     print('Start Adversarial Training...')
-    log.write('adversarial training...\n')
     for epoch_num in range(EPOCH_COUNT):
         # Train the generator for one step
         print(" > Epoch " + str(epoch_num) + "/" + str(EPOCH_COUNT))
@@ -127,7 +145,8 @@ def main():
             samples = generator.generate(sess)
             rewards = rollout.get_reward(sess, samples, 16, discriminator)
             feed = {generator.x: samples, generator.rewards: rewards}
-            _ = sess.run(generator.g_updates, feed_dict=feed)
+            _, loss = sess.run([generator.g_updates, generator.g_loss], feed_dict=feed)
+            history.generator_loss.append(loss)
             print("   > Generator params updated")
 
         # Update roll-out parameters
@@ -150,13 +169,18 @@ def main():
                         discriminator.input_y: y_batch,
                         discriminator.dropout_keep_prob: dis_dropout_keep_prob
                     }
-                    _ = sess.run(discriminator.train_op, feed)
+                    _, loss = sess.run([discriminator.train_op, discriminator.loss], feed)
+                    history.discriminator_loss.append(loss)
                     # print("     > Discriminator params updated")
 
-    save_path = saver.save(sess, MODEL_FILE)
-    print("Model saved in path: %s" % save_path)
+        if epoch_num % 10 == 0:
+            history.save()
+            save_path = saver.save(sess, MODEL_FILE)
+            print("Intermediate model at epoch saved in path: %s" % save_path)
 
-    log.close()
+    history.save()
+    save_path = saver.save(sess, MODEL_FILE)
+    print("Final model saved in path: %s" % save_path)
 
 
 if __name__ == '__main__':

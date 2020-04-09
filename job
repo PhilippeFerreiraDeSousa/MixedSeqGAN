@@ -1,0 +1,2 @@
+#!/bin/bash
+srun --ntasks=1 --cpus-per-task=2 --mem=16G --gres=gpu:3 python sequence_gan.py

@@ -5,7 +5,7 @@ from tensorflow.python.ops import tensor_array_ops, control_flow_ops
 class Generator(object):
     def __init__(self, num_emb, batch_size, emb_dim, hidden_dim,
                  sequence_length, start_token,
-                 learning_rate=0.01, reward_gamma=0.95):
+                 learning_rate=1e-4, reward_gamma=0.95):
         self.num_emb = num_emb
         self.batch_size = batch_size
         self.emb_dim = emb_dim
@@ -115,8 +115,8 @@ class Generator(object):
                     tf.clip_by_value(tf.reshape(self.g_predictions[:, :, 2:], [-1, self.num_emb]), 1e-20, 1.0)
                 ), 1) * tf.reshape(self.rewards, [-1])
         )
-        self.continuous_loss = 1000 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 0], self.x[:, :, 0])) \
-          + 10 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 1], self.x[:, :, 1]))
+        self.continuous_loss = 100 * tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 0], self.x[:, :, 0])) \
+          + tf.nn.l2_loss(tf.math.subtract(self.g_predictions[:, :, 1], self.x[:, :, 1]))
 
         self.g_loss =  self.categorical_loss + self.continuous_loss
         g_opt = self.g_optimizer(self.learning_rate)

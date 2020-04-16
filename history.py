@@ -41,4 +41,4 @@ class History:
     @staticmethod
     def load(HISTORY_FILE):
         with open(HISTORY_FILE, "rb") as history_file:
-            return pickle.load(history_file)
+            return pickle.load(history_file, encoding='latin1')

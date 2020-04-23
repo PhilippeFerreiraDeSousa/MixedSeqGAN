@@ -72,6 +72,21 @@ def generate_samples(sess, trainable_model, batch_size, generated_num, output_fi
     df = pd.DataFrame(data=data)
     df.to_hdf(output_file, key="CDS", complib="zlib", complevel=9, mode='w')
 
+
+def validate(sess, discriminator, history, dis_data_loader):
+    positive_test_probas = sess.run(discriminator.ypred_for_auc, {
+        discriminator.input_x: dis_data_loader.positive_test_sentences,
+        discriminator.dropout_keep_prob: dis_dropout_keep_prob
+    })
+    history.discriminator_positive_test_probas.append(positive_test_probas)
+
+    negative_test_probas = sess.run(discriminator.ypred_for_auc, {
+        discriminator.input_x: dis_data_loader.positive_test_sentences,
+        discriminator.dropout_keep_prob: dis_dropout_keep_prob
+    })
+    history.discriminator_negative_test_probas.append(negative_test_probas)
+
+
 def main():
     random.seed(SEED)
     np.random.seed(SEED)
@@ -87,9 +102,9 @@ def main():
                       DIS_TRAINING_FAKE_SAMPLE_COUNT,
                       DIS_TRAINING_UPDATE_COUNT)
 
-    gen_data_loader = Gen_Data_loader(BATCH_SIZE, SEQ_LENGTH)
+    # gen_data_loader = Gen_Data_loader(BATCH_SIZE, SEQ_LENGTH)
     vocab_size = 112 # np.array([2, 3, 2, 4, 4]) + np.array([1, 1, 1, 1, 1])
-    dis_data_loader = Dis_dataloader(BATCH_SIZE, SEQ_LENGTH)
+    dis_data_loader = Dis_dataloader(BATCH_SIZE, SEQ_LENGTH, positive_file)
 
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)
 
@@ -110,14 +125,16 @@ def main():
         print("Initial random model saved in path: %s" % save_random_path)
 
     # First, use the oracle model to provide the positive examples, which are sampled from the oracle data distribution
-    gen_data_loader.create_batches(positive_file)
+    # gen_data_loader.create_batches(positive_file)
+
+    validate(sess, discriminator, history, dis_data_loader)
 
     print('Start pre-training discriminator...')
     # Train 3 epoch on the generated data and do this for 50 times
     for i in range(DIS_PRETRAINING_FAKE_SAMPLE_COUNT):
         print(" > Fake sample " + str(i) + "/" + str(DIS_PRETRAINING_FAKE_SAMPLE_COUNT))
         generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-        dis_data_loader.load_train_data(positive_file, negative_file)
+        dis_data_loader.load_train_data(negative_file)
         for j in range(DIS_PRETRAINING_UPDATE_COUNT):
             dis_data_loader.reset_pointer()
             print("   > Pass " + str(j) + "/" + str(DIS_PRETRAINING_UPDATE_COUNT))
@@ -131,6 +148,8 @@ def main():
                 _, loss = sess.run([discriminator.train_op, discriminator.loss], feed)
                 history.pre_training_loss.append(loss)
                 # print("     > Discriminator params updated")
+
+        validate(sess, discriminator, history, dis_data_loader)
 
     rollout = ROLLOUT(generator, 0.8)
     history.save()
@@ -156,7 +175,7 @@ def main():
         # Train the discriminator
         for i in range(DIS_TRAINING_FAKE_SAMPLE_COUNT):
             generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-            dis_data_loader.load_train_data(positive_file, negative_file)
+            dis_data_loader.load_train_data(negative_file)
             print("   > Discriminator training sample " + str(i) + "/" + str(DIS_TRAINING_FAKE_SAMPLE_COUNT))
 
             for j in range(DIS_TRAINING_UPDATE_COUNT):
@@ -172,6 +191,8 @@ def main():
                     _, loss = sess.run([discriminator.train_op, discriminator.loss], feed)
                     history.discriminator_loss.append(loss)
                     # print("     > Discriminator params updated")
+
+            validate(sess, discriminator, history, dis_data_loader)
 
         if epoch_num % 10 == 0:
             history.save()

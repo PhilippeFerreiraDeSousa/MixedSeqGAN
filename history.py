@@ -28,6 +28,8 @@ class History:
         self.generator_categorical_loss = []
         self.generator_continuous_loss = []
         self.discriminator_loss = []
+        self.discriminator_positive_test_probas = []
+        self.discriminator_negative_test_probas = []
 
 
     @property

@@ -31,31 +31,43 @@ class Gen_Data_loader():
 
 
 class Dis_dataloader():
-    def __init__(self, batch_size, seq_length):
+    def __init__(self, batch_size, seq_length, positive_file):
         self.batch_size = batch_size
         self.sentences = np.array([])
+        self.positive_test_sentences = np.array([])
+        self.negative_test_sentences = np.array([])
         self.labels = np.array([])
         self.seq_length = seq_length
 
-    def load_train_data(self, positive_file, negative_file):
-        # Load data
         positive_examples = []
-        negative_examples = []
 
         df_pos = pd.read_hdf(positive_file)
         count_pos = len(df_pos)
         for i in range(int(count_pos / self.seq_length)):
             positive_examples.append(df_pos.values[i * self.seq_length:(i + 1) * self.seq_length])
 
+        len_data = len(positive_examples)
+        sep = len_data // 5
+        self.positive_test_sentences = positive_examples[:sep]
+
+        self.positive_examples = positive_examples[sep:]
+
+    def load_train_data(self, negative_file):
         df_neg = pd.read_hdf(negative_file)
         count_neg = len(df_neg)
-        for i in range(int(count_neg / self.seq_length)):
-            negative_examples.append(df_neg.values[i * self.seq_length:(i + 1) * self.seq_length])
+        sep = count_neg // 5
+        self.negative_test_sentences = df_neg[:sep]
 
-        self.sentences = np.array(positive_examples + negative_examples)
+        # Load data
+        negative_examples = []
+
+        for i in range(int((count_neg - sep) / self.seq_length)):
+            negative_examples.append(df_neg[sep:].values[i * self.seq_length:(i + 1) * self.seq_length])
+
+        self.sentences = np.array(self.positive_examples + negative_examples)
 
         # Generate labels
-        positive_labels = [[0, 1] for _ in positive_examples]
+        positive_labels = [[0, 1] for _ in self.positive_examples]
         negative_labels = [[1, 0] for _ in negative_examples]
         self.labels = np.concatenate([positive_labels, negative_labels], 0)
 
@@ -63,6 +75,10 @@ class Dis_dataloader():
         shuffle_indices = np.random.permutation(np.arange(len(self.labels)))
         self.sentences = self.sentences[shuffle_indices]
         self.labels = self.labels[shuffle_indices]
+        # self.sentences, test_set, self.labels, test_labels = train_test_split(self.sentences, self.labels,
+        #                                                                       test_size=0.2, random_state=42)
+        # self.positive_test_sentences = test_set[test_labels[:, 0] == 0]
+        # self.negative_test_sentences = test_set[test_labels[:, 0] == 1]
 
         # Split batches
         self.num_batch = int(len(self.labels) / self.batch_size)

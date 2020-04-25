@@ -103,7 +103,7 @@ def main():
                       DIS_TRAINING_UPDATE_COUNT)
 
     # gen_data_loader = Gen_Data_loader(BATCH_SIZE, SEQ_LENGTH)
-    vocab_size = 112 # np.array([2, 3, 2, 4, 4]) + np.array([1, 1, 1, 1, 1])
+    vocab_size = 112
     dis_data_loader = Dis_dataloader(BATCH_SIZE, SEQ_LENGTH, positive_file)
 
     generator = Generator(vocab_size, BATCH_SIZE, EMB_DIM, HIDDEN_DIM, SEQ_LENGTH, START_TOKEN)

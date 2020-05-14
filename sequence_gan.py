@@ -42,7 +42,7 @@ dis_batch_size = 64
 #########################################################################################
 positive_file = 'save/CDS_Preprocessed_Data_merged.h5.gz'
 negative_file = 'save/generator_sample.h5.gz'
-generated_num = 37212 // SEQ_LENGTH # generate the same number of negative, in reality we get only 1856 sequences instead of 1860 ???
+generated_negative_data_count = 37212 // SEQ_LENGTH # generate the same number of negative, in reality we get only 1856 sequences instead of 1860 ???
 
 
 # Loop iteration counts
@@ -96,7 +96,7 @@ def main():
                       DIS_PRETRAINING_UPDATE_COUNT,
                       BATCH_SIZE,
                       SEQ_LENGTH,
-                      generated_num,
+                      generated_negative_data_count,
                       EPOCH_COUNT,
                       GEN_TRAINING_UPDATE_COUNT,
                       DIS_TRAINING_FAKE_SAMPLE_COUNT,
@@ -127,14 +127,13 @@ def main():
     # First, use the oracle model to provide the positive examples, which are sampled from the oracle data distribution
     # gen_data_loader.create_batches(positive_file)
 
-    validate(sess, discriminator, history, dis_data_loader)
-
     print('Start pre-training discriminator...')
     # Train 3 epoch on the generated data and do this for 50 times
     for i in range(DIS_PRETRAINING_FAKE_SAMPLE_COUNT):
         print(" > Fake sample " + str(i) + "/" + str(DIS_PRETRAINING_FAKE_SAMPLE_COUNT))
-        generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
+        generate_samples(sess, generator, BATCH_SIZE, generated_negative_data_count, negative_file)
         dis_data_loader.load_train_data(negative_file)
+        validate(sess, discriminator, history, dis_data_loader)
         for j in range(DIS_PRETRAINING_UPDATE_COUNT):
             dis_data_loader.reset_pointer()
             print("   > Pass " + str(j) + "/" + str(DIS_PRETRAINING_UPDATE_COUNT))
@@ -149,7 +148,7 @@ def main():
                 history.pre_training_loss.append(loss)
                 # print("     > Discriminator params updated")
 
-        validate(sess, discriminator, history, dis_data_loader)
+    validate(sess, discriminator, history, dis_data_loader)
 
     rollout = ROLLOUT(generator, 0.8)
     history.save()
@@ -174,7 +173,7 @@ def main():
 
         # Train the discriminator
         for i in range(DIS_TRAINING_FAKE_SAMPLE_COUNT):
-            generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
+            generate_samples(sess, generator, BATCH_SIZE, generated_negative_data_count, negative_file)
             dis_data_loader.load_train_data(negative_file)
             print("   > Discriminator training sample " + str(i) + "/" + str(DIS_TRAINING_FAKE_SAMPLE_COUNT))
 

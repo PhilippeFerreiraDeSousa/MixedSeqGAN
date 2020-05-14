@@ -39,30 +39,26 @@ class Dis_dataloader():
         self.labels = np.array([])
         self.seq_length = seq_length
 
-        positive_examples = []
-
         df_pos = pd.read_hdf(positive_file)
-        count_pos = len(df_pos)
-        for i in range(int(count_pos / self.seq_length)):
-            positive_examples.append(df_pos.values[i * self.seq_length:(i + 1) * self.seq_length])
 
-        len_data = len(positive_examples)
-        sep = len_data // 5
-        self.positive_test_sentences = positive_examples[:sep]
+        self.num_sentences = int(len(df_pos) / self.seq_length)
+        positive_examples = np.split(df_pos.values[:self.num_sentences * self.seq_length], self.num_sentences, 0)
 
+        count_pos = len(positive_examples)
+        sep = count_pos // 5
+        self.positive_test_sentences = np.array(positive_examples[:sep])
         self.positive_examples = positive_examples[sep:]
 
     def load_train_data(self, negative_file):
         df_neg = pd.read_hdf(negative_file)
-        count_neg = len(df_neg)
+
+        self.num_sentences = int(len(df_neg) / self.seq_length)
+        negative_examples = np.split(df_neg.values[:self.num_sentences * self.seq_length], self.num_sentences, 0)
+
+        count_neg = len(negative_examples)
         sep = count_neg // 5
-        self.negative_test_sentences = df_neg[:sep]
-
-        # Load data
-        negative_examples = []
-
-        for i in range(int((count_neg - sep) / self.seq_length)):
-            negative_examples.append(df_neg[sep:].values[i * self.seq_length:(i + 1) * self.seq_length])
+        self.negative_test_sentences = np.array(negative_examples[:sep])
+        negative_examples = negative_examples[sep:]
 
         self.sentences = np.array(self.positive_examples + negative_examples)
 
